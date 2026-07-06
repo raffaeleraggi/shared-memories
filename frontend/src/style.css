@@ -1,0 +1,188 @@
+@import url('https://fonts.googleapis.com/css2?family=Allura&family=Caveat:wght@400;500;600;700&family=Parisienne&display=swap');
+
+:root {
+  --font-main: "Caveat", serif;
+  --font-title: "Allura", cursive;
+  --font-logo: "Parisienne", cursive;
+  color: #221b18;
+  background: #f7efe8;
+}
+* { box-sizing: border-box; }
+body { font-family: var(--font-main); margin: 0; }
+a { color: inherit; }
+.container { max-width: 980px; margin: 0 auto; padding: 32px 18px; }
+.card { background: rgba(255,255,255,.86); border: 1px solid #eadbd0; border-radius: 24px; padding: 24px; box-shadow: 0 20px 60px rgba(81,55,39,.08); }
+.header { display:flex; justify-content:space-between; align-items:center; gap: 16px; margin-bottom: 20px; }
+h1 { margin: 0; font-size: clamp(32px, 7vw, 58px); letter-spacing: -1px; }
+h2 { margin-top: 0; }
+.muted { color: #c79d79; }
+.grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+button, .btn { border: 0; border-radius: 999px; background:#315a7d; color:white; padding:12px 18px; font-weight:700; cursor:pointer; text-decoration:none; display:inline-block; }
+button.secondary, .btn.secondary { background:#315a7d; margin: 12px 6px 6px; }
+.btn.danger { background:#e90202e5; margin: 12px 6px 6px; }
+input, textarea { width: 100%; border:1px solid #decac0; border-radius:14px; padding:12px 14px; font: inherit; background:white; }
+label { display:block; font-weight:700; margin: 12px 0 6px; }
+.event-row { display:flex; justify-content:space-between; gap:12px; align-items:center; padding:14px 0; border-top:1px solid #eadbd0; }
+.drop { border: 2px dashed #c79d79; border-radius: 22px; padding: 30px; text-align:center; background:#fffaf6; }
+.preview { width:100%; height:180px; object-fit:cover; border-radius:18px; background:#ddd; }
+.media-card video { width:100%; height:180px; object-fit:cover; border-radius:18px; background:#111; }
+.progress { height:10px; border-radius:99px; background:#eadbd0; overflow:hidden; margin-top:8px; }
+.progress > div { height:100%; background:#315a7d; }
+h1,
+.page-title,
+.hero-title{
+    font-family: var(--font-title);
+    font-weight:400;
+}
+h2,
+.card-title{
+    font-family: var(--font-title);
+    font-weight:400;
+}
+button{
+    font-family:var(--font-main);
+    font-weight:700;
+}
+table,
+th,
+td{
+    font-family:var(--font-main);
+}
+input,
+textarea,
+select{
+    font-family:var(--font-main);
+}
+@media (max-width: 700px) { .header, .event-row { align-items:flex-start; flex-direction:column; } }
+
+.media-preview:hover {
+    transform: scale(1.03);
+    box-shadow: 0 8px 20px rgba(0,0,0,.2);
+}
+
+.media-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 24px;
+}
+
+.media-card {
+  overflow: hidden;
+}
+
+.media-preview {
+  width: 100%;
+  height: 220px;
+  object-fit: cover;
+  border-radius: 16px;
+  display: block;
+}
+
+.media-preview.video {
+  width: 100%;
+  max-height: 320px;
+  object-fit: contain;
+  background: #000;
+}
+
+.upload-dropzone {
+  border: 2px dashed #d8bfa8;
+  border-radius: 28px;
+  padding: 42px 24px;
+  text-align: center;
+  background: #fffaf6;
+  cursor: pointer;
+  transition: all .2s ease;
+}
+
+.upload-dropzone:hover {
+  background: #fff4ec;
+  transform: translateY(-2px);
+}
+
+.upload-plus {
+  width: 72px;
+  height: 72px;
+  margin: 0 auto 18px;
+  border-radius: 50%;
+  background: #315a7d;
+  color: white;
+  font-size: 48px;
+  line-height: 60px;
+  font-weight: 300;
+}
+
+.upload-successfull{
+  margin: 15px auto 15px;
+  text-align: center;
+}
+
+.upload-dropzone h2 {
+  margin: 0;
+}
+
+.upload-dropzone p {
+  margin-top: 8px;
+  color: #7a6a5f;
+}
+
+.media-card {
+  position: relative;
+}
+
+.media-checkbox {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  width: 22px;
+  height: 22px;
+  z-index: 2;
+}
+
+.media-card {
+    position: relative;
+    overflow: hidden;
+    border-radius: 16px;
+}
+
+/* Cerchietto sopra l'immagine */
+.media-select {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 20;
+    cursor: pointer;
+}
+
+.media-select input {
+    display: none;
+}
+
+.checkmark {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: rgba(255,255,255,.45);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+
+    border: 2px solid rgba(255,255,255,.9);
+    color: transparent;
+
+    transition: all .2s ease;
+}
+
+.media-select:hover .checkmark {
+    background: rgba(255,255,255,.65);
+}
+
+.media-select input:checked + .checkmark {
+    background: rgba(33,150,243,.95);
+    border-color: white;
+    color: white;
+    transform: scale(1.08);
+}
