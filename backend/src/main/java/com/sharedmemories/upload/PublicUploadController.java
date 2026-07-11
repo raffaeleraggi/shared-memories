@@ -19,8 +19,11 @@ public class PublicUploadController {
     }
 
     @PostMapping("/media/complete")
-    public MediaDto complete(@PathVariable String slug, @Valid @RequestBody CompleteUploadRequest request) {
-        return uploadService.complete(slug, request);
+    public void completeUpload(
+            @PathVariable String slug,
+            @Valid @RequestBody CompleteUploadRequest request
+    ) {
+        uploadService.completeUpload(slug, request);
     }
 
     @GetMapping("/gallery")

@@ -1,5 +1,6 @@
 package com.sharedmemories.upload;
 
+import com.sharedmemories.config.AppProperties;
 import com.sharedmemories.event.EventEntity;
 import com.sharedmemories.event.EventService;
 import com.sharedmemories.media.MediaDto;
@@ -10,6 +11,7 @@ import com.sharedmemories.storage.StorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.util.UUID;
@@ -21,6 +23,8 @@ public class UploadService {
     private final EventService eventService;
     private final MediaRepository mediaRepository;
     private final StorageService storageService;
+    private final AppProperties properties;
+
 
     public CreateUploadUrlResponse createUploadUrl(String slug, CreateUploadUrlRequest request) {
         EventEntity event = eventService.getBySlug(slug);
@@ -64,5 +68,35 @@ public class UploadService {
     private String extensionOf(String filename) {
         int i = filename.lastIndexOf('.');
         return i > -1 ? filename.substring(i) : "";
+    }
+
+
+    @Transactional
+    public void completeUpload(String slug, CompleteUploadRequest request) {
+        EventEntity event = eventService.getBySlug(slug);
+
+        MediaEntity media = new MediaEntity();
+        media.setEvent(event);
+        media.setStorageKey(request.storageKey());
+        media.setOriginalFilename(request.filename());
+        media.setContentType(request.contentType());
+        media.setSize(request.size());
+
+        media.setUploadedBy(normalizeNullable(request.uploadedBy()));
+        media.setMessage(normalizeNullable(request.message()));
+
+        String publicUrl = properties.getStorage().getLocalBaseUrl()
+                + "/"
+                + request.storageKey();
+
+        media.setPublicUrl(publicUrl);
+
+        mediaRepository.save(media);
+    }
+
+    private String normalizeNullable(String value) {
+        return StringUtils.hasText(value)
+                ? value.trim()
+                : null;
     }
 }

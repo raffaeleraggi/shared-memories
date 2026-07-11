@@ -23,4 +23,8 @@ public class MediaEntity {
     private Long size;
     private boolean approved = true;
     private LocalDateTime uploadedAt = LocalDateTime.now();
+    @Column(length = 100)
+    private String uploadedBy;
+    @Column(length = 1000)
+    private String message;
 }
