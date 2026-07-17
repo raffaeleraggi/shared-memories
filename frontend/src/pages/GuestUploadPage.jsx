@@ -191,7 +191,7 @@ export default function GuestUploadPage() {
           <p className="muted">Prima di condividere</p>
           <h2>
             {pendingFiles.length === 1
-              ? "Aggiungi un dettaglio"
+              ? "Se vuoi, facci sapere..."
               : `Hai selezionato ${pendingFiles.length} contenuti`}
           </h2>
 
@@ -224,7 +224,7 @@ export default function GuestUploadPage() {
                 uploadedBy: e.target.value,
               }))
             }
-            placeholder="Il tuo nome, facoltativo"
+            placeholder="Il tuo nome"
             disabled={uploading}
           />
 
@@ -239,7 +239,7 @@ export default function GuestUploadPage() {
                 message: e.target.value,
               }))
             }
-            placeholder="Scrivi qualcosa su questo momento, facoltativo"
+            placeholder="Scrivi qualcosa su questo momento"
             disabled={uploading}
           />
 
