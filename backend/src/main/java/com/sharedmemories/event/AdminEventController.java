@@ -5,6 +5,7 @@ import com.google.zxing.client.j2se.MatrixToImageWriter;
 import com.google.zxing.qrcode.QRCodeWriter;
 import com.sharedmemories.config.AppProperties;
 import com.sharedmemories.media.MediaDto;
+import com.sharedmemories.qr.QrCodeService;
 import com.sharedmemories.upload.DownloadService;
 import com.sharedmemories.upload.UploadService;
 import jakarta.servlet.http.HttpServletResponse;
@@ -26,6 +27,7 @@ public class AdminEventController {
     private final UploadService uploadService;
     private final AppProperties properties;
     private final DownloadService downloadService;
+    private final QrCodeService qrCodeService;
 
     @PostMapping
     public EventDto create(@Valid @RequestBody CreateEventRequest request) { return eventService.create(request); }

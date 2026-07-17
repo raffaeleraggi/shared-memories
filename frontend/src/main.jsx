@@ -16,6 +16,8 @@ createRoot(document.getElementById('root')).render(
         <Route path="/admin/events/:id" element={<AdminEventDetailPage />} />
         <Route path="/e/:slug" element={<GuestUploadPage />} />
         <Route path="/e/:slug/gallery" element={<PublicGalleryPage />} />
+        <Route path="/e/:slug/tavolo/:sourceToken" element={<GuestUploadPage />} />
+        <Route path="/e/:slug/tavolo/:sourceToken/gallery" element={<PublicGalleryPage />}/>
       </Routes>
     </BrowserRouter>
   </React.StrictMode>

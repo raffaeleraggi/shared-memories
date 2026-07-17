@@ -8,6 +8,8 @@ import com.sharedmemories.media.MediaEntity;
 import com.sharedmemories.media.MediaRepository;
 import com.sharedmemories.storage.SignedUpload;
 import com.sharedmemories.storage.StorageService;
+import com.sharedmemories.uploadsource.UploadSourceEntity;
+import com.sharedmemories.uploadsource.UploadSourceService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,6 +26,7 @@ public class UploadService {
     private final MediaRepository mediaRepository;
     private final StorageService storageService;
     private final AppProperties properties;
+    private final UploadSourceService uploadSourceService;
 
 
     public CreateUploadUrlResponse createUploadUrl(String slug, CreateUploadUrlRequest request) {
@@ -72,8 +75,22 @@ public class UploadService {
 
 
     @Transactional
-    public void completeUpload(String slug, CompleteUploadRequest request) {
+    public void completeUpload(
+            String slug,
+            CompleteUploadRequest request
+    ) {
         EventEntity event = eventService.getBySlug(slug);
+
+        UploadSourceEntity source =
+                uploadSourceService.getByToken(
+                        request.sourceToken()
+                );
+
+        if (!source.getEvent().getId().equals(event.getId())) {
+            throw new IllegalArgumentException(
+                    "Il QR code non appartiene a questo evento"
+            );
+        }
 
         MediaEntity media = new MediaEntity();
         media.setEvent(event);
@@ -81,15 +98,13 @@ public class UploadService {
         media.setOriginalFilename(request.filename());
         media.setContentType(request.contentType());
         media.setSize(request.size());
+        media.setPublicUrl(
+                buildPublicUrl(request.storageKey())
+        );
 
-        media.setUploadedBy(normalizeNullable(request.uploadedBy()));
-        media.setMessage(normalizeNullable(request.message()));
-
-        String publicUrl = properties.getStorage().getLocalBaseUrl()
-                + "/"
-                + request.storageKey();
-
-        media.setPublicUrl(publicUrl);
+        media.setUploadedBy(source.getLabel());
+        media.setMessage(null);
+        media.setApproved(true);
 
         mediaRepository.save(media);
     }
@@ -98,5 +113,20 @@ public class UploadService {
         return StringUtils.hasText(value)
                 ? value.trim()
                 : null;
+    }
+
+    private String buildPublicUrl(String storageKey) {
+
+        if ("local".equalsIgnoreCase(properties.getStorage().getMode())) {
+            return properties.getStorage().getLocalBaseUrl()
+                    + "/"
+                    + storageKey;
+        }
+
+        return properties.getStorage()
+                .getR2()
+                .getPublicBaseUrl()
+                + "/"
+                + storageKey;
     }
 }

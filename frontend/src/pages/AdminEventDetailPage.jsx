@@ -10,13 +10,54 @@ export default function AdminEventDetailPage() {
   const [selectedMedia, setSelectedMedia] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
   const [detailMedia, setDetailMedia] = useState(null);
+  const [uploadSources, setUploadSources] = useState([]);
+  const [generatingQr, setGeneratingQr] = useState(false);
 
+  async function loadUploadSources() {
+    try {
+      const response = await api.get(
+        `/api/admin/events/${id}/upload-sources`
+      );
+
+      setUploadSources(response.data);
+    } catch (error) {
+      console.error("Errore caricamento QR tavoli", error);
+    }
+  }
+
+  async function generateTableQrCodes() {
+    setGeneratingQr(true);
+
+    try {
+      const response = await api.post(
+        `/api/admin/events/${id}/upload-sources/generate-tables`,
+        null,
+        {
+          params: {
+            count: 13,
+          },
+        }
+      );
+
+      setUploadSources(response.data);
+    } catch (error) {
+      console.error("Errore generazione QR tavoli", error);
+      alert("Errore durante la generazione dei QR code.");
+    } finally {
+      setGeneratingQr(false);
+    }
+  }
 
   async function load() {
-    const eventsRes = await api.get('/api/admin/events');
+    const eventsRes = await api.get("/api/admin/events");
     setEvents(eventsRes.data);
-    const mediaRes = await api.get(`/api/admin/events/${id}/media`);
+
+    const mediaRes = await api.get(
+      `/api/admin/events/${id}/media`
+    );
     setMedia(mediaRes.data);
+
+    await loadUploadSources();
   }
 
   function toggleMedia(id) {
@@ -66,10 +107,55 @@ export default function AdminEventDetailPage() {
     <Link to="/admin/events" className="muted">← Torna agli eventi</Link>
     <div className="card" style={{ marginTop: 18, marginBottom: 24 }}>
       <h1>{event?.name || 'Evento'}</h1>
-      {event && <>
-        <p className="muted">Link ospiti: <a href={publicUrl}>{publicUrl}</a></p>
-        <img alt="QR Code" src={`${api.defaults.baseURL}/api/admin/events/${id}/qr`} width="220" height="220" />
-      </>}
+      {event && (
+        <>
+          <div className="qr-section-header">
+            <div>
+              <h2>QR code dei tavoli</h2>
+              <p className="muted">
+                Ogni QR identifica automaticamente il tavolo che carica i contenuti.
+              </p>
+            </div>
+
+            {uploadSources.length === 0 && (
+              <button
+                type="button"
+                onClick={generateTableQrCodes}
+                disabled={generatingQr}
+              >
+                {generatingQr
+                  ? "Generazione..."
+                  : "Genera 13 QR code"}
+              </button>
+            )}
+          </div>
+
+          {uploadSources.length > 0 && (
+            <div className="table-qr-grid">
+              {uploadSources.map((source) => (
+                <article className="table-qr-card" key={source.id}>
+                  <h3>{source.label}</h3>
+
+                  <img
+                    src={`${api.defaults.baseURL}${source.qrUrl}`}
+                    alt={`QR code ${source.label}`}
+                    className="table-qr-image"
+                  />
+
+                  <a
+                    href={source.guestUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="table-qr-link"
+                  >
+                    Apri link ospite
+                  </a>
+                </article>
+              ))}
+            </div>
+          )}
+        </>
+      )}
     </div>
 
     <section className="card">

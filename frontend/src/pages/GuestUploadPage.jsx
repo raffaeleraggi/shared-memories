@@ -1,268 +1,313 @@
-import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import { api } from '../api/client.js';
-import { useRef } from 'react';
-
+import { useEffect, useRef, useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import { api } from "../api/client.js";
 
 export default function GuestUploadPage() {
-  const { slug } = useParams();
+  const { slug, sourceToken } = useParams();
+
   const [event, setEvent] = useState(null);
+  const [uploadSource, setUploadSource] = useState(null);
   const [progress, setProgress] = useState({});
   const [done, setDone] = useState(false);
-  const fileInputRef = useRef(null);
-  const [pendingFiles, setPendingFiles] = useState([]);
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [uploadInfo, setUploadInfo] = useState({
-    uploadedBy: "",
-    message: "",
-  });
   const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
-    api.get(`/api/public/events/${slug}`).then(res => setEvent(res.data));
+    api
+      .get(`/api/public/events/${slug}`)
+      .then((response) => setEvent(response.data))
+      .catch((err) => {
+        console.error("Errore caricamento evento", err);
+        setError("Evento non trovato.");
+      });
   }, [slug]);
 
-  async function uploadOne(file, metadata) {
-    const signed = await api.post(
+  useEffect(() => {
+    if (!sourceToken) {
+      setError("QR code non valido: manca il token del tavolo.");
+      return;
+    }
+
+    api
+      .get(`/api/public/upload-sources/${sourceToken}`)
+      .then((response) => {
+        setUploadSource(response.data);
+
+        if (
+          response.data.eventSlug &&
+          response.data.eventSlug !== slug
+        ) {
+          setError("Il QR code non appartiene a questo evento.");
+        }
+      })
+      .catch((err) => {
+        console.error("Errore caricamento sorgente QR", err);
+        setError("QR code non valido o non più attivo.");
+      });
+  }, [slug, sourceToken]);
+
+  async function uploadOne(file) {
+    /*
+     * Prima chiediamo al backend la URL di upload.
+     * Questo endpoint non deve essere /media/complete.
+     */
+    const signedResponse = await api.post(
       `/api/public/events/${slug}/upload-url`,
       {
         filename: file.name,
-        contentType: file.type,
+        contentType: file.type || "application/octet-stream",
         size: file.size,
       }
     );
 
-    const { uploadUrl, storageKey, method } = signed.data;
+    const {
+      uploadUrl,
+      storageKey,
+      method,
+    } = signedResponse.data;
+
+    if (!uploadUrl || !storageKey) {
+      throw new Error("Risposta upload non valida");
+    }
 
     if (method === "POST") {
       const formData = new FormData();
       formData.append("file", file);
 
+      /*
+       * Se uploadUrl è un path locale, api.post va bene.
+       * Se è una URL completa R2/S3, Axios la usa comunque come URL assoluta.
+       */
       await api.post(uploadUrl, formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
+        onUploadProgress: (event) => {
+          const percentage = event.total
+            ? Math.round((event.loaded * 100) / event.total)
+            : 0;
+
+          setProgress((current) => ({
+            ...current,
+            [file.name]: percentage,
+          }));
         },
-        onUploadProgress: (e) =>
-          setProgress((p) => ({
-            ...p,
-            [file.name]: e.total
-              ? Math.round((e.loaded * 100) / e.total)
-              : 0,
-          })),
       });
     } else {
       await api.put(uploadUrl, file, {
         headers: {
-          "Content-Type": file.type || "application/octet-stream",
+          "Content-Type":
+            file.type || "application/octet-stream",
         },
-        onUploadProgress: (e) =>
-          setProgress((p) => ({
-            ...p,
-            [file.name]: e.total
-              ? Math.round((e.loaded * 100) / e.total)
-              : 0,
-          })),
+        onUploadProgress: (event) => {
+          const percentage = event.total
+            ? Math.round((event.loaded * 100) / event.total)
+            : 0;
+
+          setProgress((current) => ({
+            ...current,
+            [file.name]: percentage,
+          }));
+        },
       });
     }
 
-    await api.post(`/api/public/events/${slug}/media/complete`, {
-      storageKey,
-      filename: file.name,
-      contentType: file.type,
-      size: file.size,
-      uploadedBy: metadata.uploadedBy.trim() || null,
-      message: metadata.message.trim() || null,
-    });
+    /*
+     * Solo dopo l'upload effettivo registriamo il media nel DB.
+     * uploadedBy viene ricavato dal backend usando sourceToken.
+     */
+    await api.post(
+      `/api/public/events/${slug}/media/complete`,
+      {
+        storageKey,
+        filename: file.name,
+        contentType:
+          file.type || "application/octet-stream",
+        size: file.size,
+        sourceToken,
+      }
+    );
   }
 
-  async function confirmUpload() {
-    if (pendingFiles.length === 0 || uploading) {
+  async function uploadAll(selectedFiles) {
+    if (
+      selectedFiles.length === 0 ||
+      uploading ||
+      error
+    ) {
       return;
     }
 
     setUploading(true);
     setDone(false);
+    setError("");
+    setProgress({});
 
     try {
-      for (const file of pendingFiles) {
-        await uploadOne(file, uploadInfo);
+      /*
+       * Upload sequenziale: più semplice e stabile da smartphone.
+       * Successivamente puoi introdurre un parallelismo limitato.
+       */
+      for (const file of selectedFiles) {
+        await uploadOne(file);
       }
 
       setDone(true);
-      setShowUploadModal(false);
-      setPendingFiles([]);
-      setUploadInfo({
-        uploadedBy: "",
-        message: "",
-      });
-    } catch (error) {
-      console.error("Errore durante l'upload", error);
-      alert("Si è verificato un errore durante il caricamento.");
+    } catch (err) {
+      console.error("Errore durante l'upload", err);
+
+      const message =
+        err.response?.data?.message ||
+        "Si è verificato un errore durante il caricamento.";
+
+      setError(message);
     } finally {
       setUploading(false);
     }
   }
 
-  function cancelUpload() {
-    if (uploading) {
+  function handleFileSelection(event) {
+    const selectedFiles = Array.from(
+      event.target.files || []
+    );
+
+    event.target.value = "";
+
+    if (selectedFiles.length === 0) {
       return;
     }
 
-    setShowUploadModal(false);
-    setPendingFiles([]);
-    setUploadInfo({
-      uploadedBy: "",
-      message: "",
-    });
+    uploadAll(selectedFiles);
   }
 
-  async function uploadAll(selectedFiles) {
-    setDone(false);
+  return (
+    <main className="container">
+      <section className="card">
+        <p className="muted">Shared Memories</p>
 
-    for (const file of selectedFiles) {
-      await uploadOne(file);
-    }
+        <h1>{event?.name || "Evento"}</h1>
 
-    setDone(true);
-  }
+        {uploadSource && (
+          <div className="table-badge">
+            {uploadSource.label}
+          </div>
+        )}
 
-  return <main className="container">
-    <section className="card">
-      <p className="muted">Shared Memories</p>
-      <h1>{event?.name || 'Evento'}</h1>
-      <p>{event?.description || 'Carica qui foto e video della giornata.'}</p>
+        <p>
+          {event?.description ||
+            "Carica qui foto e video della giornata."}
+        </p>
 
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        accept="image/*,video/*"
-        style={{ display: "none" }}
-        onChange={(e) => {
-          const selectedFiles = Array.from(e.target.files || []);
+        {error && (
+          <div className="upload-error">
+            {error}
+          </div>
+        )}
 
-          if (selectedFiles.length === 0) {
-            return;
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept="image/*,video/*"
+          hidden
+          onChange={handleFileSelection}
+          disabled={
+            uploading ||
+            !uploadSource ||
+            Boolean(error)
           }
+        />
 
-          setPendingFiles(selectedFiles);
-          setUploadInfo({
-            uploadedBy: "",
-            message: "",
-          });
-          setShowUploadModal(true);
-
-          e.target.value = "";
-        }}
-      />
-
-      <div
-        className="upload-dropzone"
-        onClick={() => fileInputRef.current?.click()}
-      >
-        <div className="upload-plus">+</div>
-        <h2>Aggiungi foto o video</h2>
-        <p>Tocca qui per caricare i tuoi ricordi</p>
-      </div>
-
-      {done && <h2 className='upload-successfull'><strong>Grazie per aver condiviso con noi il tuo ricordo!</strong></h2>}
-      <p style={{ marginTop: 20 }}><Link to={`/e/${slug}/gallery`}>Guarda la galleria</Link></p>
-    </section>
-
-    {showUploadModal && (
-      <div
-        className="upload-modal-overlay"
-        onClick={cancelUpload}
-      >
         <div
-          className="upload-modal"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            type="button"
-            className="upload-modal-close"
-            onClick={cancelUpload}
-            disabled={uploading}
-            aria-label="Chiudi"
-          >
-            ×
-          </button>
+          className={`upload-dropzone ${uploading ? "uploading disabled" : ""
+            }`}
+          onClick={() => {
+            if (
+              uploading ||
+              !uploadSource ||
+              Boolean(error)
+            ) {
+              return;
+            }
 
-          <p className="muted">Prima di condividere</p>
-          <h2>
-            {pendingFiles.length === 1
-              ? "Se vuoi, facci sapere..."
-              : `Hai selezionato ${pendingFiles.length} contenuti`}
+            fileInputRef.current?.click();
+          }}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(event) => {
+            if (
+              event.key === "Enter" ||
+              event.key === " "
+            ) {
+              event.preventDefault();
+
+              if (
+                !uploading &&
+                uploadSource &&
+                !error
+              ) {
+                fileInputRef.current?.click();
+              }
+            }
+          }}
+          aria-disabled={
+            uploading ||
+            !uploadSource ||
+            Boolean(error)
+          }
+        >
+          <div className="upload-plus">
+            {uploading ? "…" : "+"}
+          </div>
+
+          <h2 className="upload-title">
+            {uploading
+              ? "Caricamento in corso"
+              : "Aggiungi foto o video"}
           </h2>
 
-          <div className="selected-files-summary">
-            {pendingFiles.slice(0, 3).map((file) => (
-              <div className="selected-file-row" key={`${file.name}-${file.size}`}>
-                <span>{file.name}</span>
-                <small>
-                  {(file.size / 1024 / 1024).toFixed(1)} MB
-                </small>
-              </div>
-            ))}
-
-            {pendingFiles.length > 3 && (
-              <p className="muted">
-                e altri {pendingFiles.length - 3} contenuti
-              </p>
-            )}
-          </div>
-
-          <label htmlFor="uploadedBy">Chi sta caricando?</label>
-          <input
-            id="uploadedBy"
-            type="text"
-            maxLength={100}
-            value={uploadInfo.uploadedBy}
-            onChange={(e) =>
-              setUploadInfo((current) => ({
-                ...current,
-                uploadedBy: e.target.value,
-              }))
-            }
-            placeholder="Il tuo nome"
-            disabled={uploading}
-          />
-
-          <label htmlFor="uploadMessage">Messaggio o nota</label>
-          <textarea
-            id="uploadMessage"
-            maxLength={1000}
-            value={uploadInfo.message}
-            onChange={(e) =>
-              setUploadInfo((current) => ({
-                ...current,
-                message: e.target.value,
-              }))
-            }
-            placeholder="Scrivi qualcosa su questo momento"
-            disabled={uploading}
-          />
-
-          <div className="upload-modal-actions">
-            <button
-              type="button"
-              className="btn secondary"
-              onClick={cancelUpload}
-              disabled={uploading}
-            >
-              Annulla
-            </button>
-
-            <button
-              type="button"
-              onClick={confirmUpload}
-              disabled={uploading}
-            >
-              {uploading ? "Caricamento..." : "Condividi"}
-            </button>
-          </div>
+          <p className="upload-description">
+            {uploading
+              ? "Non chiudere questa pagina"
+              : "Tocca qui per condividere i tuoi ricordi"}
+          </p>
         </div>
-      </div>
-    )}
-  </main>;
+
+        {Object.entries(progress).map(
+          ([filename, percentage]) => (
+            <div
+              className="upload-progress-row"
+              key={filename}
+            >
+              <div className="upload-progress-header">
+                <span>{filename}</span>
+                <span>{percentage}%</span>
+              </div>
+
+              <div className="upload-progress-track">
+                <div
+                  className="upload-progress-value"
+                  style={{
+                    width: `${percentage}%`,
+                  }}
+                />
+              </div>
+            </div>
+          )
+        )}
+
+        {done && (
+          <h2 className="upload-successfull">
+            Grazie per aver condiviso con noi il tuo
+            ricordo!
+          </h2>
+        )}
+
+        <p style={{ marginTop: 20 }}>
+          <Link to={`/e/${slug}/tavolo/${sourceToken}/gallery`}>
+            Guarda la galleria
+          </Link>
+        </p>
+      </section>
+    </main >
+  );
 }
