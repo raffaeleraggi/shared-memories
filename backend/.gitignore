@@ -2,7 +2,7 @@
 .idea/
 
 # Backend
-backend/target/
+target/
 
 # Frontend
 frontend/node_modules/
