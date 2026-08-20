@@ -5,26 +5,5 @@ spring:
     name: shared-memories
   servlet:
     multipart:
-      max-file-size: 100MB
-      max-request-size: 100MB
-  datasource:
-    url: jdbc:postgresql://localhost:5432/shared_memories
-    username: shared_user
-    password: shared_password
-    driver-class-name: org.postgresql.Driver
-
-  jpa:
-    hibernate:
-      ddl-auto: update
-app:
-  public-base-url: http://localhost:5173
-  storage:
-    mode: local
-    local-base-url: http://localhost:8080/uploads
-    local-path: ./uploads
-    r2:
-      endpoint: ${R2_ENDPOINT:}
-      access-key: ${R2_ACCESS_KEY:}
-      secret-key: ${R2_SECRET_KEY:}
-      bucket: ${R2_BUCKET:}
-      public-base-url: ${R2_PUBLIC_BASE_URL:}
+      max-file-size: 200MB
+      max-request-size: 200MB

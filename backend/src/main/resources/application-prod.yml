@@ -1,0 +1,22 @@
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+
+app:
+  public-base-url: https://photo.martinaericcardosposi.it
+
+  storage:
+    mode: r2
+
+    r2:
+      endpoint: ${R2_ENDPOINT}
+      access-key: ${R2_ACCESS_KEY}
+      secret-key: ${R2_SECRET_KEY}
+      bucket: ${R2_BUCKET}
+      public-base-url: ${R2_PUBLIC_BASE_URL}
