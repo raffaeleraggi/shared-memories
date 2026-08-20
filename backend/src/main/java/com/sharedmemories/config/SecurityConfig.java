@@ -29,7 +29,8 @@ public class SecurityConfig {
                 "http://localhost:5173",
                 "http://localhost:5174",
                 "http://192.168.1.153:5173",
-                "http://192.168.1.153:5174"
+                "http://192.168.1.153:5174",
+                "https://photo.martinaericcardosposi.it"
         ));        c.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         c.setAllowedHeaders(List.of("*"));
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
