@@ -53,7 +53,7 @@ public class AdminEventController {
         return out.toByteArray();
     }
 
-    @GetMapping("/media/download-selected")
+/*    @GetMapping("/media/download-selected")
     public void downloadSelected(@RequestParam List<UUID> ids, HttpServletResponse response) throws IOException {
         downloadService.downloadSelected(ids, response, properties);
     }
@@ -61,5 +61,31 @@ public class AdminEventController {
     @GetMapping("/media/download-all")
     public void downloadAll(HttpServletResponse response) throws IOException {
         downloadService.downloadAll(response, properties);
+    }*/
+
+    @GetMapping(
+            value = "/media/download-selected",
+            produces = "application/zip"
+    )
+    public void downloadSelected(
+            @RequestParam List<UUID> ids,
+            HttpServletResponse response
+    ) throws IOException {
+
+        downloadService.downloadSelected(ids, response);
     }
+
+    @GetMapping(
+            value = "/media/download-all",
+            produces = "application/zip"
+    )
+    public void downloadAll(
+            HttpServletResponse response
+    ) throws IOException {
+
+        downloadService.downloadAll(response);
+    }
+
+
+
 }

@@ -1,5 +1,6 @@
 package com.sharedmemories.storage;
 
+import java.io.OutputStream;
 import java.util.List;
 
 public interface StorageService {
@@ -9,4 +10,5 @@ public interface StorageService {
     SignedPartUpload createPartUploadUrl(String storageKey, String uploadId, int partNumber);
     void completeMultipart(String storageKey, String uploadId, List<CompletedUploadPart> parts);
     void abortMultipart(String storageKey, String uploadId);
+    void downloadTo(String storageKey, OutputStream outputStream);
 }

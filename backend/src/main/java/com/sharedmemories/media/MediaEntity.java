@@ -4,6 +4,7 @@ import com.sharedmemories.event.EventEntity;
 import jakarta.persistence.*;
 import lombok.Data;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
@@ -22,7 +23,7 @@ public class MediaEntity {
     private String contentType;
     private Long size;
     private boolean approved = true;
-    private LocalDateTime uploadedAt = LocalDateTime.now();
+    private Instant uploadedAt = Instant.now();
     @Column(length = 100)
     private String uploadedBy;
     @Column(length = 1000)

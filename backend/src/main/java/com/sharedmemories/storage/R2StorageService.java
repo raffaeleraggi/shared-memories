@@ -6,6 +6,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.sync.ResponseTransformer;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
@@ -14,6 +15,7 @@ import software.amazon.awssdk.services.s3.presigner.model.PresignedUploadPartReq
 import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignRequest;
 import software.amazon.awssdk.services.s3.presigner.model.UploadPartPresignRequest;
 
+import java.io.OutputStream;
 import java.net.URI;
 import java.time.Duration;
 import java.util.Comparator;
@@ -203,4 +205,35 @@ public class R2StorageService implements StorageService {
             );
         }
     }
+    @Override
+    public void downloadTo(
+            String storageKey,
+            OutputStream outputStream
+    ) {
+        AppProperties.R2 r2 =
+                properties.getStorage().getR2();
+
+        GetObjectRequest request =
+                GetObjectRequest.builder()
+                        .bucket(r2.getBucket())
+                        .key(storageKey)
+                        .build();
+
+        try (S3Client client = createClient()) {
+
+            client.getObject(
+                    request,
+                    ResponseTransformer.toOutputStream(
+                            outputStream
+                    )
+            );
+
+        } catch (Exception e) {
+            throw new IllegalStateException(
+                    "Errore download R2: " + storageKey,
+                    e
+            );
+        }
+    }
+
 }

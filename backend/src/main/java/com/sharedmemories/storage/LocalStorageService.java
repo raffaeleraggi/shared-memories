@@ -5,6 +5,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
+import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 @Service
@@ -62,6 +66,26 @@ public class LocalStorageService implements StorageService {
         throw new UnsupportedOperationException(
                 "Multipart upload non supportato in modalità local"
         );
+    }
+
+    @Override
+    public void downloadTo(
+            String storageKey,
+            OutputStream outputStream
+    ) {
+        try {
+            Path file = Path.of(
+                    properties.getStorage().getLocalPath()
+            ).resolve(storageKey);
+
+            Files.copy(file, outputStream);
+
+        } catch (IOException e) {
+            throw new IllegalStateException(
+                    "Errore lettura file " + storageKey,
+                    e
+            );
+        }
     }
 
 }
