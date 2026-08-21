@@ -6,8 +6,7 @@ import com.sharedmemories.event.EventService;
 import com.sharedmemories.media.MediaDto;
 import com.sharedmemories.media.MediaEntity;
 import com.sharedmemories.media.MediaRepository;
-import com.sharedmemories.storage.SignedUpload;
-import com.sharedmemories.storage.StorageService;
+import com.sharedmemories.storage.*;
 import com.sharedmemories.uploadsource.UploadSourceEntity;
 import com.sharedmemories.uploadsource.UploadSourceService;
 import lombok.RequiredArgsConstructor;
@@ -22,6 +21,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class UploadService {
     private static final long MAX_FILE_SIZE = 200L * 1024L * 1024L;
+    private static final long MULTIPART_MAX_SIZE = 10L * 1024 * 1024 * 1024;
     private final EventService eventService;
     private final MediaRepository mediaRepository;
     private final StorageService storageService;
@@ -64,7 +64,7 @@ public class UploadService {
     }
 
     private void validateFile(String contentType, Long size) {
-        if (size == null || size <= 0 || size > MAX_FILE_SIZE) throw new IllegalArgumentException("File troppo grande o non valido");
+        if (size == null || size <= 0) throw new IllegalArgumentException("File non valido");
         if (!(contentType.startsWith("image/") || contentType.startsWith("video/"))) throw new IllegalArgumentException("Sono ammessi solo foto e video");
     }
 
@@ -128,5 +128,117 @@ public class UploadService {
                 .getPublicBaseUrl()
                 + "/"
                 + storageKey;
+    }
+
+    public MultipartStartResponse startMultipart(
+            String slug,
+            MultipartStartRequest request
+    ) {
+        EventEntity event = eventService.getBySlug(slug);
+
+        String storageKey = buildStorageKey(
+                event,
+                request.filename()
+        );
+
+        MultipartUploadStart started =
+                storageService.startMultipart(
+                        storageKey,
+                        request.contentType()
+                );
+
+        return new MultipartStartResponse(
+                storageKey,
+                started.uploadId()
+        );
+    }
+
+    public MultipartPartResponse createPartUrl(
+            String slug,
+            MultipartPartRequest request
+    ) {
+        eventService.getBySlug(slug);
+
+        SignedPartUpload signed =
+                storageService.createPartUploadUrl(
+                        request.storageKey(),
+                        request.uploadId(),
+                        request.partNumber()
+                );
+
+        return new MultipartPartResponse(
+                signed.uploadUrl(),
+                signed.partNumber()
+        );
+    }
+
+    @Transactional
+    public void completeMultipart(
+            String slug,
+            MultipartCompleteRequest request
+    ) {
+        EventEntity event =
+                eventService.getBySlug(slug);
+
+        UploadSourceEntity source =
+                uploadSourceService.getByToken(
+                        request.sourceToken()
+                );
+
+        if (!source.getEvent()
+                .getId()
+                .equals(event.getId())) {
+
+            throw new IllegalArgumentException(
+                    "QR code non appartenente all'evento"
+            );
+        }
+
+        storageService.completeMultipart(
+                request.storageKey(),
+                request.uploadId(),
+                request.parts()
+        );
+
+        MediaEntity media = new MediaEntity();
+
+        media.setEvent(event);
+        media.setStorageKey(request.storageKey());
+        media.setOriginalFilename(request.filename());
+        media.setContentType(request.contentType());
+        media.setSize(request.size());
+
+        media.setPublicUrl(
+                storageService.publicUrl(
+                        request.storageKey()
+                )
+        );
+
+        media.setUploadedBy(source.getLabel());
+        media.setApproved(true);
+
+        mediaRepository.save(media);
+    }
+
+    public void abortMultipart(
+            String slug,
+            MultipartAbortRequest request
+    ) {
+        eventService.getBySlug(slug);
+
+        storageService.abortMultipart(
+                request.storageKey(),
+                request.uploadId()
+        );
+    }
+
+    private String buildStorageKey(EventEntity event, String filename) {
+        String extension = extensionOf(filename);
+
+        return "events/%s/%s%s".formatted(
+                event.getSlug(),
+                UUID.randomUUID(),
+                extension
+        );
     }
 }

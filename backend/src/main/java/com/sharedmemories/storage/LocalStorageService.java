@@ -5,6 +5,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 @ConditionalOnProperty(name = "app.storage.mode", havingValue = "local", matchIfMissing = true)
@@ -19,6 +21,47 @@ public class LocalStorageService implements StorageService {
     @Override
     public String publicUrl(String storageKey) {
         return properties.getStorage().getLocalBaseUrl() + "/" + storageKey;
+    }
+
+    @Override
+    public MultipartUploadStart startMultipart(
+            String storageKey,
+            String contentType
+    ) {
+        throw new UnsupportedOperationException(
+                "Multipart upload non supportato in modalità local"
+        );
+    }
+
+    @Override
+    public SignedPartUpload createPartUploadUrl(
+            String storageKey,
+            String uploadId,
+            int partNumber)
+    {
+        throw new UnsupportedOperationException(
+                "Multipart upload non supportato in modalità local"
+        );
+    }
+
+    @Override
+    public void completeMultipart(
+            String storageKey,
+            String uploadId,
+            List<CompletedUploadPart> parts
+    ){
+        throw new UnsupportedOperationException(
+                "Multipart upload non supportato in modalità local"
+        );
+    }
+
+    @Override
+    public void abortMultipart(String storageKey,
+                               String uploadId
+    ){
+        throw new UnsupportedOperationException(
+                "Multipart upload non supportato in modalità local"
+        );
     }
 
 }

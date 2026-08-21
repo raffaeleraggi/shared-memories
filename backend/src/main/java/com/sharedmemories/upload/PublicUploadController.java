@@ -1,6 +1,8 @@
 package com.sharedmemories.upload;
 
 import com.sharedmemories.media.MediaDto;
+import com.sharedmemories.storage.MultipartStartRequest;
+import com.sharedmemories.storage.MultipartStartResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -30,4 +32,19 @@ public class PublicUploadController {
     public List<MediaDto> gallery(@PathVariable String slug) {
         return uploadService.publicGallery(slug);
     }
+
+    @PostMapping(
+            "/multipart/start"
+    )
+    public MultipartStartResponse startMultipart(
+            @PathVariable String slug,
+            @RequestBody MultipartStartRequest request
+    ) {
+        return uploadService.startMultipart(
+                slug,
+                request
+        );
+    }
+
 }
+

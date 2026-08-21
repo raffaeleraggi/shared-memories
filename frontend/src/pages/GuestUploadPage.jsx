@@ -14,6 +14,12 @@ export default function GuestUploadPage() {
 
   const fileInputRef = useRef(null);
 
+  const MULTIPART_THRESHOLD =
+  100 * 1024 * 1024;
+
+  const PART_SIZE =
+  25 * 1024 * 1024;
+
   useEffect(() => {
     api
       .get(`/api/public/events/${slug}`)
@@ -49,6 +55,14 @@ export default function GuestUploadPage() {
   }, [slug, sourceToken]);
 
   async function uploadOne(file) {
+  if (file.size >= MULTIPART_THRESHOLD) {
+    return uploadMultipart(file);
+  }
+
+  return uploadSingle(file);
+}
+
+  async function uploadSingle(file) {
     /*
      * Prima chiediamo al backend la URL di upload.
      * Questo endpoint non deve essere /media/complete.
@@ -127,6 +141,160 @@ export default function GuestUploadPage() {
       }
     );
   }
+
+  async function uploadMultipart(file) {
+
+  const startResponse = await api.post(
+    `/api/public/events/${slug}/multipart/start`,
+    {
+      filename: file.name,
+      contentType:
+        file.type || "application/octet-stream",
+      size: file.size,
+    }
+  );
+
+  const {
+    storageKey,
+    uploadId,
+  } = startResponse.data;
+
+  const numberOfParts =
+    Math.ceil(file.size / PART_SIZE);
+
+  const completedParts = [];
+
+  try {
+
+    for (
+      let partNumber = 1;
+      partNumber <= numberOfParts;
+      partNumber++
+    ) {
+
+      const start =
+        (partNumber - 1) * PART_SIZE;
+
+      const end =
+        Math.min(
+          start + PART_SIZE,
+          file.size
+        );
+
+      const blob =
+        file.slice(start, end);
+
+      const signedResponse =
+        await api.post(
+          `/api/public/events/${slug}/multipart/part-url`,
+          {
+            storageKey,
+            uploadId,
+            partNumber,
+          }
+        );
+
+      const uploadUrl =
+        signedResponse.data.uploadUrl;
+
+      const response = await api.put(
+        uploadUrl,
+        blob,
+        {
+          headers: {
+            "Content-Type":
+              "application/octet-stream",
+          },
+
+          onUploadProgress: (event) => {
+
+            if (!event.total) {
+              return;
+            }
+
+            const currentPartProgress =
+              event.loaded / event.total;
+
+            const totalUploaded =
+              start +
+              blob.size *
+                currentPartProgress;
+
+            const percentage =
+              Math.round(
+                totalUploaded /
+                  file.size *
+                  100
+              );
+
+            setProgress(current => ({
+              ...current,
+              [file.name]: percentage,
+            }));
+          },
+        }
+      );
+
+      const eTag =
+        response.headers.etag;
+
+      if (!eTag) {
+        throw new Error(
+          `ETag mancante per la parte ${partNumber}`
+        );
+      }
+
+      completedParts.push({
+        partNumber,
+        eTag,
+      });
+    }
+
+    await api.post(
+      `/api/public/events/${slug}/multipart/complete`,
+      {
+        storageKey,
+        uploadId,
+
+        parts: completedParts,
+
+        filename: file.name,
+
+        contentType:
+          file.type ||
+          "application/octet-stream",
+
+        size: file.size,
+
+        sourceToken,
+      }
+    );
+
+  } catch (error) {
+
+    console.error(
+      "Multipart upload fallito",
+      error
+    );
+
+    try {
+      await api.post(
+        `/api/public/events/${slug}/multipart/abort`,
+        {
+          storageKey,
+          uploadId,
+        }
+      );
+    } catch (abortError) {
+      console.error(
+        "Errore abort multipart",
+        abortError
+      );
+    }
+
+    throw error;
+  }
+}
 
   async function uploadAll(selectedFiles) {
     if (
