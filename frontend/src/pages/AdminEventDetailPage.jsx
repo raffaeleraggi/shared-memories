@@ -191,11 +191,6 @@ export default function AdminEventDetailPage() {
             </div>
 
             <div className="detail-row">
-              <strong>Messaggio</strong>
-              <p>{detailMedia.message || "Nessun messaggio"}</p>
-            </div>
-
-            <div className="detail-row">
               <strong>Caricato il</strong>
               <span>
                 {detailMedia.uploadedAt

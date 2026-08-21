@@ -17,8 +17,8 @@ export default function GuestUploadPage() {
   const MULTIPART_THRESHOLD =
   100 * 1024 * 1024;
 
-  const PART_SIZE =
-  25 * 1024 * 1024;
+  const MAX_CONCURRENCY = 3;
+  const MAX_RETRIES = 3;
 
   useEffect(() => {
     api
@@ -142,136 +142,189 @@ export default function GuestUploadPage() {
     );
   }
 
-  async function uploadMultipart(file) {
-
+async function uploadMultipart(file) {
+  const partSize = getPartSize(file.size);
   const startResponse = await api.post(
     `/api/public/events/${slug}/multipart/start`,
     {
       filename: file.name,
-      contentType:
-        file.type || "application/octet-stream",
+      contentType: file.type || "application/octet-stream",
       size: file.size,
     }
   );
 
-  const {
-    storageKey,
-    uploadId,
-  } = startResponse.data;
+  const { storageKey, uploadId } = startResponse.data;
 
-  const numberOfParts =
-    Math.ceil(file.size / PART_SIZE);
+  const numberOfParts = Math.ceil(file.size / partSize);
+
+  const parts = Array.from(
+    { length: numberOfParts },
+    (_, index) => {
+      const partNumber = index + 1;
+      const start = index * partSize;
+      const end = Math.min(start + partSize, file.size);
+
+      return {
+        partNumber,
+        start,
+        end,
+        blob: file.slice(start, end),
+      };
+    }
+  );
 
   const completedParts = [];
+  const uploadedBytesByPart = {};
 
-  try {
+  function updateTotalProgress(partNumber, loaded) {
+    uploadedBytesByPart[partNumber] = loaded;
+
+    const totalUploaded = Object.values(
+      uploadedBytesByPart
+    ).reduce((sum, value) => sum + value, 0);
+
+    const percentage = Math.min(
+      100,
+      Math.round((totalUploaded / file.size) * 100)
+    );
+
+    setProgress((current) => ({
+      ...current,
+      [file.name]: percentage,
+    }));
+  }
+
+  async function uploadPart(part) {
+    let lastError;
 
     for (
-      let partNumber = 1;
-      partNumber <= numberOfParts;
-      partNumber++
+      let attempt = 1;
+      attempt <= MAX_RETRIES;
+      attempt++
     ) {
-
-      const start =
-        (partNumber - 1) * PART_SIZE;
-
-      const end =
-        Math.min(
-          start + PART_SIZE,
-          file.size
-        );
-
-      const blob =
-        file.slice(start, end);
-
-      const signedResponse =
-        await api.post(
+      try {
+        const signedResponse = await api.post(
           `/api/public/events/${slug}/multipart/part-url`,
           {
             storageKey,
             uploadId,
-            partNumber,
+            partNumber: part.partNumber,
           }
         );
 
-      const uploadUrl =
-        signedResponse.data.uploadUrl;
+        const uploadUrl =
+          signedResponse.data.uploadUrl;
 
-      const response = await api.put(
-        uploadUrl,
-        blob,
-        {
-          headers: {
-            "Content-Type":
-              "application/octet-stream",
-          },
+        const response = await api.put(
+          uploadUrl,
+          part.blob,
+          {
+            headers: {
+              "Content-Type":
+                "application/octet-stream",
+            },
 
-          onUploadProgress: (event) => {
-
-            if (!event.total) {
-              return;
-            }
-
-            const currentPartProgress =
-              event.loaded / event.total;
-
-            const totalUploaded =
-              start +
-              blob.size *
-                currentPartProgress;
-
-            const percentage =
-              Math.round(
-                totalUploaded /
-                  file.size *
-                  100
+            onUploadProgress: (event) => {
+              updateTotalProgress(
+                part.partNumber,
+                event.loaded
               );
-
-            setProgress(current => ({
-              ...current,
-              [file.name]: percentage,
-            }));
-          },
-        }
-      );
-
-      const eTag =
-        response.headers.etag;
-
-      if (!eTag) {
-        throw new Error(
-          `ETag mancante per la parte ${partNumber}`
+            },
+          }
         );
-      }
 
-      completedParts.push({
-        partNumber,
-        eTag,
-      });
+        const eTag = response.headers.etag;
+
+        if (!eTag) {
+          throw new Error(
+            `ETag mancante per parte ${part.partNumber}`
+          );
+        }
+
+        updateTotalProgress(
+          part.partNumber,
+          part.blob.size
+        );
+
+        return {
+          partNumber: part.partNumber,
+          eTag,
+        };
+      } catch (error) {
+        lastError = error;
+
+        console.warn(
+          `Parte ${part.partNumber}, tentativo ${attempt}/${MAX_RETRIES} fallito`,
+          error
+        );
+
+        uploadedBytesByPart[part.partNumber] = 0;
+
+        if (attempt < MAX_RETRIES) {
+          await new Promise((resolve) =>
+            setTimeout(
+              resolve,
+              attempt * 1000
+            )
+          );
+        }
+      }
     }
+
+    throw lastError;
+  }
+
+  async function worker(queue) {
+    while (queue.length > 0) {
+      const part = queue.shift();
+
+      const result =
+        await uploadPart(part);
+
+      completedParts.push(result);
+    }
+  }
+
+  try {
+    const queue = [...parts];
+
+    const workers = Array.from(
+      {
+        length: Math.min(
+          MAX_CONCURRENCY,
+          parts.length
+        ),
+      },
+      () => worker(queue)
+    );
+
+    await Promise.all(workers);
+
+    completedParts.sort(
+      (a, b) =>
+        a.partNumber - b.partNumber
+    );
 
     await api.post(
       `/api/public/events/${slug}/multipart/complete`,
       {
         storageKey,
         uploadId,
-
         parts: completedParts,
-
         filename: file.name,
-
         contentType:
           file.type ||
           "application/octet-stream",
-
         size: file.size,
-
         sourceToken,
       }
     );
 
+    setProgress((current) => ({
+      ...current,
+      [file.name]: 100,
+    }));
   } catch (error) {
-
     console.error(
       "Multipart upload fallito",
       error
@@ -287,7 +340,7 @@ export default function GuestUploadPage() {
       );
     } catch (abortError) {
       console.error(
-        "Errore abort multipart",
+        "Abort multipart fallito",
         abortError
       );
     }
@@ -478,4 +531,16 @@ export default function GuestUploadPage() {
       </section>
     </main >
   );
+
+  function getPartSize(fileSize) {
+  if (fileSize < 500 * 1024 * 1024) {
+    return 25 * 1024 * 1024;
+  }
+
+  if (fileSize < 2 * 1024 * 1024 * 1024) {
+    return 50 * 1024 * 1024;
+  }
+
+  return 100 * 1024 * 1024;
+}
 }
