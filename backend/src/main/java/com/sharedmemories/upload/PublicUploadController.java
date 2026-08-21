@@ -1,8 +1,7 @@
 package com.sharedmemories.upload;
 
 import com.sharedmemories.media.MediaDto;
-import com.sharedmemories.storage.MultipartStartRequest;
-import com.sharedmemories.storage.MultipartStartResponse;
+import com.sharedmemories.storage.*;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -44,6 +43,31 @@ public class PublicUploadController {
                 slug,
                 request
         );
+    }
+
+
+    @PostMapping("/multipart/part-url")
+    public MultipartPartResponse createPartUrl(
+            @PathVariable String slug,
+            @RequestBody MultipartPartRequest request
+    ) {
+        return uploadService.createPartUrl(slug, request);
+    }
+
+    @PostMapping("/multipart/complete")
+    public void completeMultipart(
+            @PathVariable String slug,
+            @RequestBody MultipartCompleteRequest request
+    ) {
+        uploadService.completeMultipart(slug, request);
+    }
+
+    @PostMapping("/multipart/abort")
+    public void abortMultipart(
+            @PathVariable String slug,
+            @RequestBody MultipartAbortRequest request
+    ) {
+        uploadService.abortMultipart(slug, request);
     }
 
 }
